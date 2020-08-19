@@ -1,95 +1,100 @@
 const express = require("express");
 const app = express();
 const Usuario = require("../models/usuario");
+const {
+	verificaToken,
+	verificaAdminRole
+} = require("../middlewares/autenticacion");
 const { Mongoose } = require("mongoose");
 const bcrypt = require("bcrypt");
 const _ = require("underscore");
 
-//NOTA: Las .use son middleware, cada petición va a pasar primero por esos
+app.get("/usuario", verificaToken, (req, res) => {
+	let desde = req.query.desde || 0;
+	desde = Number(desde);
 
-app.get('/usuario', (req, res) => {
+	let limite = req.query.limite || 5;
+	limite = Number(limite);
 
-    let desde = req.query.desde || 0;
-    desde = Number(desde);
+	Usuario.find({ estado: true }, "role estado google nombre email")
+		.skip(desde)
+		.limit(limite)
+		.exec((err, usuarios) => {
+			if (err) {
+				return res.status(400).json({
+					ok: false,
+					err
+				});
+			}
 
-    let limite = req.query.limite || 5;
-    limite = Number(limite);
+			Usuario.countDocuments({ estado: true }, (err, cantidad) => {
+				if (err) {
+					return res.status(400).json({
+						ok: false,
+						err
+					});
+				}
 
-    Usuario.find({estado: true}, 'role estado google nombre email')
-            .skip(desde)
-            .limit(limite)
-            .exec((err, usuarios) => {
-                if(err){
-                    return res.status(400).json({
-                        ok: false,
-                        err
-                    });
-                }
-
-                Usuario.countDocuments({estado: true}, (err, cantidad) => {
-                    if(err){
-                        return res.status(400).json({
-                            ok: false,
-                            err
-                        });
-                    }
-                    
-                    res.json({
-                        ok: true,
-                        cantidad,
-                        usuarios
-                    });
-                });
-            });
+				res.json({
+					ok: true,
+					cantidad,
+					usuarios
+				});
+			});
+		});
 });
 
-app.post('/usuario', (req, res) => {
-    let body = req.body;
+app.post("/usuario", [verificaToken, verificaAdminRole], (req, res) => {
+	let body = req.body;
 
-    let usuario = new Usuario({
-        nombre: body.nombre,
-        email: body.email,
-        password: bcrypt.hashSync(body.password, 10),
-        role: body.role
-    });
+	let usuario = new Usuario({
+		nombre: body.nombre,
+		email: body.email,
+		password: bcrypt.hashSync(body.password, 10),
+		role: body.role
+	});
 
-    usuario.save((error, usuarioDB) => {
-        if(error){
-            return res.status(400).json({
-                ok: false,
-                error
-            });
-        }
+	usuario.save((error, usuarioDB) => {
+		if (error) {
+			return res.status(400).json({
+				ok: false,
+				error
+			});
+		}
 
-        res.json({
-            ok: true,
-            usuario: usuarioDB
-        });
-    });
+		res.json({
+			ok: true,
+			usuario: usuarioDB
+		});
+	});
 });
 
-app.put('/usuario/:id', (req, res) => {
-    let id = req.params.id;
+app.put("/usuario/:id", [verificaToken, verificaAdminRole], (req, res) => {
+	let id = req.params.id;
 
-    //_.pick(); permite filtrar los parámetros que vamos a permitir modificar
-    // recibe el body donde está todo el objeto y después un arreglo con lo permitido de ese objeto
-    let body = _.pick(req.body, ['nombre','email','img','role','estado']);
+	//_.pick(); permite filtrar los parámetros que vamos a permitir modificar
+	// recibe el body donde está todo el objeto y después un arreglo con lo permitido de ese objeto
+	let body = _.pick(req.body, ["nombre", "email", "img", "role", "estado"]);
 
-    Usuario.findByIdAndUpdate(id, body, {new: true, runValidators: true}, (error, usuarioDB) =>{
-        if(error){
-            return res.status(400).json({
-                ok: false,
-                error
-            });
-        }
+	Usuario.findByIdAndUpdate(
+		id,
+		body,
+		{ new: true, runValidators: true },
+		(error, usuarioDB) => {
+			if (error) {
+				return res.status(400).json({
+					ok: false,
+					error
+				});
+			}
 
-        res.json({
-            ok: true,
-            usuario: usuarioDB
-        });
-    });
+			res.json({
+				ok: true,
+				usuario: usuarioDB
+			});
+		}
+	);
 });
-
 
 // Borrado completo (físico) - No es conveniente
 /* app.delete('/usuario/:id', (req, res) => {
@@ -119,27 +124,32 @@ app.put('/usuario/:id', (req, res) => {
 }); */
 
 // Borrado lógico - Es lo más adecuado
-app.delete('/usuario/:id', (req, res) => {
-    let id = req.params.id;
-    let body = _.pick(req.body, ['nombre','email','img','role','estado']);
+app.delete("/usuario/:id", [verificaToken, verificaAdminRole], (req, res) => {
+	let id = req.params.id;
+	let body = _.pick(req.body, ["nombre", "email", "img", "role", "estado"]);
 
-    let cambiaEstado = {
-        estado: false
-    }
+	let cambiaEstado = {
+		estado: false
+	};
 
-    Usuario.findByIdAndUpdate(id, cambiaEstado, {new: true, runValidators: true}, (err, usuarioBorrado) => {
-        if(err){
-            return res.status(400).json({
-                ok: false,
-                err
-            });
-        }
+	Usuario.findByIdAndUpdate(
+		id,
+		cambiaEstado,
+		{ new: true, runValidators: true },
+		(err, usuarioBorrado) => {
+			if (err) {
+				return res.status(400).json({
+					ok: false,
+					err
+				});
+			}
 
-        res.json({
-            ok: true,
-            usuario: usuarioBorrado
-        });
-    });
+			res.json({
+				ok: true,
+				usuario: usuarioBorrado
+			});
+		}
+	);
 });
 
 module.exports = app;
